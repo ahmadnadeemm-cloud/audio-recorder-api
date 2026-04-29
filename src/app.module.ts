@@ -18,7 +18,7 @@ import { UsersModule } from "./users/users.module";
 
         // ✅ DEBUG (temporary) — check if Railway is providing DATABASE_URL
         console.log("DATABASE_URL present?", !!databaseUrl);
-
+        console.log("process.env.DATABASE_URL present?", !!process.env.DATABASE_URL);
         // ✅ Railway / Cloud
         if (databaseUrl) {
           return {
