@@ -15,10 +15,16 @@ import { UsersModule } from "./users/users.module";
       inject: [ConfigService],
       useFactory: (config: ConfigService) => {
         const databaseUrl = config.get<string>("DATABASE_URL");
+        const nodeEnv = config.get<string>("NODE_ENV");
 
         // ✅ DEBUG (temporary) — check if Railway is providing DATABASE_URL
         console.log("DATABASE_URL present?", !!databaseUrl);
         console.log("process.env.DATABASE_URL present?", !!process.env.DATABASE_URL);
+
+        if (nodeEnv === "production" && !databaseUrl) {
+          throw new Error("DATABASE_URL is missing in production");
+        }
+
         // ✅ Railway / Cloud
         if (databaseUrl) {
           return {
@@ -27,6 +33,9 @@ import { UsersModule } from "./users/users.module";
             autoLoadEntities: true,
             synchronize: true, // OK for now
             ssl: { rejectUnauthorized: false }, // Railway often needs SSL
+            connectTimeoutMS: 10000,
+            extra: { connectionTimeoutMillis: 10000 },
+            retryAttempts: 0, // TEMP: avoid retry loop during Railway recovery
           };
         }
 
