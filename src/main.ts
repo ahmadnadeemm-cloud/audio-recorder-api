@@ -11,7 +11,7 @@ async function bootstrap() {
 
   // ✅ Allow Next.js frontend to call this backend
   app.enableCors({
-    origin: ['http://localhost:3001', 'http://localhost:3000'],
+    origin: ['http://localhost:3001', 'http://localhost:3000', 'https://audio-recorder-web.vercel.app/'],
     credentials: true,
   });
 
