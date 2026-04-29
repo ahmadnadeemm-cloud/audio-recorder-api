@@ -20,6 +20,18 @@ export class AppController {
     return this.appService.getHello();
   }
 
+  @Get("health")
+  @ApiOkResponse({
+    description: "Basic health check that does not require the database.",
+    schema: {
+      type: "object",
+      example: { ok: true },
+    },
+  })
+  health() {
+    return { ok: true };
+  }
+
   @Post("logout")
   logout(@Res({ passthrough: true }) res: Response) {
     // Clear cookie named "token" (you can rename if needed)

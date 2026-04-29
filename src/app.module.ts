@@ -1,6 +1,6 @@
 import { Module } from "@nestjs/common";
 import { ConfigModule, ConfigService } from "@nestjs/config";
-import { TypeOrmModule } from "@nestjs/typeorm";
+import { TypeOrmModule, TypeOrmModuleOptions } from "@nestjs/typeorm";
 import { AppController } from "./app.controller";
 import { AppService } from "./app.service";
 import { AuthModule } from "./auth/auth.module";
@@ -14,42 +14,50 @@ import { UsersModule } from "./users/users.module";
     TypeOrmModule.forRootAsync({
       inject: [ConfigService],
       useFactory: (config: ConfigService) => {
-        const databaseUrl = config.get<string>("DATABASE_URL");
-        const nodeEnv = config.get<string>("NODE_ENV");
+        const databaseUrl =
+          process.env.DATABASE_URL ?? config.get<string>("DATABASE_URL");
+        const nodeEnv = process.env.NODE_ENV ?? config.get<string>("NODE_ENV");
+        const isRailway = Boolean(process.env.RAILWAY_ENVIRONMENT);
+        const isProduction = nodeEnv === "production" || isRailway;
 
-        // ✅ DEBUG (temporary) — check if Railway is providing DATABASE_URL
-        console.log("DATABASE_URL present?", !!databaseUrl);
-        console.log("process.env.DATABASE_URL present?", !!process.env.DATABASE_URL);
+        console.log(`[DB] DATABASE_URL present: ${Boolean(databaseUrl)}`);
+        console.log(`[DB] config mode: ${isProduction ? "railway" : "local"}`);
 
-        if (nodeEnv === "production" && !databaseUrl) {
-          throw new Error("DATABASE_URL is missing in production");
+        if (isProduction && !databaseUrl) {
+          throw new Error("DATABASE_URL missing on Railway production runtime");
         }
 
-        // ✅ Railway / Cloud
         if (databaseUrl) {
-          return {
+          const railwayConfig: TypeOrmModuleOptions = {
             type: "postgres",
             url: databaseUrl,
             autoLoadEntities: true,
-            synchronize: true, // OK for now
-            ssl: { rejectUnauthorized: false }, // Railway often needs SSL
-            connectTimeoutMS: 10000,
-            extra: { connectionTimeoutMillis: 10000 },
-            retryAttempts: 0, // TEMP: avoid retry loop during Railway recovery
+            synchronize: true,
+            ssl: isProduction ? { rejectUnauthorized: false } : false,
+            extra: {
+              connectionTimeoutMillis: 10000,
+            },
+            retryAttempts: 5,
+            retryDelay: 3000,
           };
+
+          return railwayConfig;
         }
 
-        // ✅ Local
-        return {
+        const localConfig: TypeOrmModuleOptions = {
           type: "postgres",
-          host: config.get("DB_HOST"),
-          port: Number(config.get("DB_PORT")),
-          username: config.get("DB_USER"),
-          password: config.get("DB_PASS"),
-          database: config.get("DB_NAME"),
+          host: process.env.DB_HOST ?? config.get("DB_HOST"),
+          port: Number(process.env.DB_PORT ?? config.get("DB_PORT")),
+          username: process.env.DB_USER ?? config.get("DB_USER"),
+          password: process.env.DB_PASS ?? config.get("DB_PASS"),
+          database: process.env.DB_NAME ?? config.get("DB_NAME"),
           autoLoadEntities: true,
-          synchronize: true, // dev only
+          synchronize: true,
+          retryAttempts: 3,
+          retryDelay: 2000,
         };
+
+        return localConfig;
       },
     }),
 
