@@ -16,6 +16,9 @@ import { UsersModule } from "./users/users.module";
       useFactory: (config: ConfigService) => {
         const databaseUrl = config.get<string>("DATABASE_URL");
 
+        // ✅ DEBUG (temporary) — check if Railway is providing DATABASE_URL
+        console.log("DATABASE_URL present?", !!databaseUrl);
+
         // ✅ Railway / Cloud
         if (databaseUrl) {
           return {
