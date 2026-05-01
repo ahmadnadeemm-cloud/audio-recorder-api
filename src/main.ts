@@ -8,19 +8,30 @@ async function bootstrap() {
   app.use(cookieParser());
   app.setGlobalPrefix("api");
   const port = Number(process.env.PORT ?? 3002);
-  const frontendUrl = (process.env.FRONTEND_URL ?? "http://localhost:3000")
-    .trim()
-    .replace(/\/+$/, "");
-  const allowedOrigins = new Set([
-    frontendUrl,
-    "http://localhost:3001",
-    "https://audio-recorder-2hb9wso0x-ahmadnadeemm-clouds-projects.vercel.app",
-  ]);
 
   app.enableCors({
     origin: (origin, callback) => {
-      if (!origin || allowedOrigins.has(origin)) {
+      if (!origin) {
         return callback(null, true);
+      }
+
+      if (origin === "http://localhost:3001") {
+        return callback(null, true);
+      }
+
+      try {
+        const { hostname, protocol } = new URL(origin);
+
+        if (
+          protocol === "https:" &&
+          hostname.endsWith(".vercel.app") &&
+          hostname.includes("ahmadnadeemm-clouds-projects")
+        ) {
+          // Update the substring above if the Vercel project/account naming changes.
+          return callback(null, true);
+        }
+      } catch {
+        return callback(new Error("CORS origin is not a valid URL"), false);
       }
 
       return callback(new Error("CORS origin not allowed"), false);
