@@ -11,7 +11,11 @@ async function bootstrap() {
   const frontendUrl = (process.env.FRONTEND_URL ?? "http://localhost:3000")
     .trim()
     .replace(/\/+$/, "");
-  const allowedOrigins = new Set([frontendUrl, "http://localhost:3001"]);
+  const allowedOrigins = new Set([
+    frontendUrl,
+    "http://localhost:3001",
+    "https://audio-recorder-2hb9wso0x-ahmadnadeemm-clouds-projects.vercel.app",
+  ]);
 
   app.enableCors({
     origin: (origin, callback) => {
