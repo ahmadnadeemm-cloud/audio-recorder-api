@@ -8,11 +8,22 @@ async function bootstrap() {
   app.use(cookieParser());
   app.setGlobalPrefix("api");
   const port = Number(process.env.PORT ?? 3002);
+  const frontendUrl = (process.env.FRONTEND_URL ?? "http://localhost:3000")
+    .trim()
+    .replace(/\/+$/, "");
+  const allowedOrigins = new Set([frontendUrl, "http://localhost:3001"]);
 
-  // ✅ Allow Next.js frontend to call this backend
   app.enableCors({
-    origin: ['http://localhost:3001', 'http://localhost:3000', 'https://audio-recorder-web.vercel.app/'],
+    origin: (origin, callback) => {
+      if (!origin || allowedOrigins.has(origin)) {
+        return callback(null, true);
+      }
+
+      return callback(new Error("CORS origin not allowed"), false);
+    },
     credentials: true,
+    allowedHeaders: ["Content-Type", "Authorization"],
+    methods: ["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
   });
 
   const config = new DocumentBuilder()

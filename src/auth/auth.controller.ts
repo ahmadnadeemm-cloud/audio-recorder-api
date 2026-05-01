@@ -1,10 +1,10 @@
-import { Body, Controller, Post, Res } from "@nestjs/common";
+import { Body, Controller, Get, Post, Req, Res, UseGuards } from "@nestjs/common";
 import { ApiTags } from "@nestjs/swagger";
+import { AuthGuard } from "@nestjs/passport";
 import { Response } from "express";
 import { AuthService } from "./auth.service";
 import { SignupDto } from "./dto/signup.dto";
 import { LoginDto } from "./dto/login.dto";
-import { GoogleLoginDto } from "./dto/google-login.dto";
 
 @ApiTags("auth")
 @Controller("auth")
@@ -32,23 +32,36 @@ export class AuthController {
     return result;
   }
 
-  @Post("google")
-  async googleLogin(@Body() dto: GoogleLoginDto, @Res({ passthrough: true }) res: Response) {
-    const result = await this.auth.loginWithGoogle(dto.idToken);
+  @Get("google")
+  @UseGuards(AuthGuard("google"))
+  googleLogin() {
+    console.log("[GoogleAuth] Starting Google OAuth flow");
+  }
 
-    res.cookie("token", result.access_token, {
-      httpOnly: true,
-      sameSite: "lax",
-      secure: false,
-      maxAge: 24 * 60 * 60 * 1000,
-    });
+  @Get("google/callback")
+  @UseGuards(AuthGuard("google"))
+  async googleCallback(@Req() req: { user?: { email?: string } }, @Res() res: Response) {
+    const email = req.user?.email;
+    console.log(`[GoogleAuth] Callback received. Email present: ${Boolean(email)}`);
 
-    return result;
+    if (!email) {
+      const frontendUrl = this.normalizeFrontendUrl(process.env.FRONTEND_URL);
+      return res.redirect(`${frontendUrl}/login?error=google_email_missing`);
+    }
+
+    const result = await this.auth.loginWithGoogleEmail(email);
+    const frontendUrl = this.normalizeFrontendUrl(process.env.FRONTEND_URL);
+
+    return res.redirect(`${frontendUrl}/auth/callback?token=${encodeURIComponent(result.access_token)}`);
   }
 
   @Post("logout")
   logout(@Res({ passthrough: true }) res: Response) {
     res.clearCookie("token", { httpOnly: true, sameSite: "lax", secure: false });
     return { message: "Logged out" };
+  }
+
+  private normalizeFrontendUrl(frontendUrl?: string) {
+    return (frontendUrl?.trim().replace(/\/+$/, "") || "http://localhost:3000");
   }
 }

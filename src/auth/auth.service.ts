@@ -3,16 +3,12 @@ import { InjectRepository } from "@nestjs/typeorm";
 import { Repository } from "typeorm";
 import * as bcrypt from "bcrypt";
 import { JwtService } from "@nestjs/jwt";
-import { OAuth2Client } from "google-auth-library";
 import { User } from "./user.entity";
 import { SignupDto } from "./dto/signup.dto";
 import { LoginDto } from "./dto/login.dto";
 
 @Injectable()
 export class AuthService {
-  private readonly googleClientId = process.env.GOOGLE_CLIENT_ID;
-  private readonly googleClient = new OAuth2Client(this.googleClientId);
-
   constructor(
     @InjectRepository(User) private usersRepo: Repository<User>,
     private jwt: JwtService
@@ -34,32 +30,27 @@ export class AuthService {
   }
 
   async findOrCreateGoogleUser(email: string) {
-    let user = await this.usersRepo.findOne({ where: { email } });
+    const normalizedEmail = this.normalizeEmail(email);
+    let user = await this.usersRepo.findOne({ where: { email: normalizedEmail } });
 
     if (!user) {
       user = await this.usersRepo.save({
-        email,
-        passwordHash: "GOOGLE_SSO",
+        email: normalizedEmail,
+        passwordHash: null,
       });
     }
 
     return user;
   }
 
-  async loginWithGoogle(idToken: string) {
-    const googleUser = await this.verifyGoogleIdToken(idToken);
-    const user = await this.findOrCreateGoogleUser(googleUser.email);
+  async issueTokenForUser(user: User) {
     const access_token = await this.jwt.signAsync({ sub: user.id });
+    return { access_token };
+  }
 
-    return {
-      access_token,
-      user: {
-        id: user.id,
-        email: user.email,
-        name: googleUser.name,
-        picture: googleUser.picture,
-      },
-    };
+  async loginWithGoogleEmail(email: string) {
+    const user = await this.findOrCreateGoogleUser(email);
+    return this.issueTokenForUser(user);
   }
 
   async login(dto: LoginDto) {
@@ -70,39 +61,14 @@ export class AuthService {
     const ok = await this.isPasswordValid(dto.password, user);
     if (!ok) throw new UnauthorizedException("Invalid email or password");
 
-    const access_token = await this.jwt.signAsync({ sub: user.id });
-    return { access_token };
-  }
-
-  private async verifyGoogleIdToken(idToken: string) {
-    if (!this.googleClientId) {
-      throw new UnauthorizedException("GOOGLE_CLIENT_ID is not configured");
-    }
-
-    const ticket = await this.googleClient.verifyIdToken({
-      idToken,
-      audience: this.googleClientId,
-    });
-
-    const payload = ticket.getPayload();
-    const email = payload?.email ? this.normalizeEmail(payload.email) : null;
-
-    if (!payload || !email) {
-      throw new UnauthorizedException("Invalid Google token");
-    }
-
-    if (!payload.email_verified) {
-      throw new UnauthorizedException("Google email is not verified");
-    }
-
-    return {
-      email,
-      name: payload.name ?? "",
-      picture: payload.picture ?? "",
-    };
+    return this.issueTokenForUser(user);
   }
 
   private async isPasswordValid(password: string, user: User) {
+    if (!user.passwordHash) {
+      return false;
+    }
+
     if (await bcrypt.compare(password, user.passwordHash)) {
       return true;
     }

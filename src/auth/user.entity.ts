@@ -8,8 +8,8 @@ export class User {
   @Column({ unique: true })
   email: string;
 
-  @Column()
-  passwordHash: string;
+  @Column({ nullable: true })
+  passwordHash: string | null;
 
   @CreateDateColumn()
   createdAt: Date;
